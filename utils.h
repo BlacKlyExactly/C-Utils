@@ -565,8 +565,6 @@ static inline int sv_write_file(const char *path, StringView sv) {
 // HASH TABLE
 // ================================================================
 
-#define HT_CAPACITY 67
-
 typedef struct HashTableEntry {
   StringView key;
   void *value;
@@ -574,22 +572,31 @@ typedef struct HashTableEntry {
 } HashTableEntry;
 
 typedef struct HashTable {
-  HashTableEntry *buckets[HT_CAPACITY];
+  HashTableEntry **buckets;
   Arena *arena;
   size_t size;
+  size_t capacity;
 } HashTable;
 
-static inline HashTable ht_init(Arena *arena) {
+static inline HashTable ht_init(Arena *arena, size_t capacity) {
   HashTable ht;
-  memset(ht.buckets, 0, sizeof(ht.buckets));
+
+  ht.buckets = (HashTableEntry **)arena_alloc(arena, sizeof(HashTableEntry *) *
+                                                         capacity);
+
+  if (ht.buckets) {
+    memset(ht.buckets, 0, sizeof(HashTableEntry *) * capacity);
+  }
+
   ht.size = 0;
   ht.arena = arena;
+  ht.capacity = capacity;
 
   return ht;
 }
 
 static inline void ht_set(HashTable *ht, StringView sv_key, void *value) {
-  size_t i = sv_hash(sv_key, HT_CAPACITY);
+  size_t i = sv_hash(sv_key, ht->capacity);
   HashTableEntry *entry = ht->buckets[i];
 
   while (entry) {
@@ -618,7 +625,7 @@ static inline void ht_set(HashTable *ht, StringView sv_key, void *value) {
 }
 
 static inline void *ht_get(HashTable *ht, StringView sv_key) {
-  size_t i = sv_hash(sv_key, HT_CAPACITY);
+  size_t i = sv_hash(sv_key, ht->capacity);
   HashTableEntry *entry = ht->buckets[i];
 
   while (entry) {
@@ -633,7 +640,7 @@ static inline void *ht_get(HashTable *ht, StringView sv_key) {
 }
 
 static inline void ht_delete(HashTable *ht, StringView sv_key) {
-  size_t i = sv_hash(sv_key, HT_CAPACITY);
+  size_t i = sv_hash(sv_key, ht->capacity);
   HashTableEntry *entry = ht->buckets[i];
   HashTableEntry *prev = NULL;
 
@@ -656,7 +663,7 @@ static inline void ht_delete(HashTable *ht, StringView sv_key) {
 typedef void (*HT_Iterator)(HashTable *, HashTableEntry *, void *, void *);
 
 static inline void ht_iterate(HashTable *ht, HT_Iterator iterator, void *data) {
-  for (size_t i = 0; i < HT_CAPACITY; i++) {
+  for (size_t i = 0; i < ht->capacity; i++) {
     HashTableEntry *entry = ht->buckets[i];
 
     while (entry) {
