@@ -129,6 +129,35 @@ typedef struct {
 
 #define SV_LIT(s) ((StringView){(s), sizeof(s) - 1})
 
+static inline StringView sv_input(Arena *arena) {
+  size_t len = 0;
+  size_t capacity = 128;
+
+  char *buffer = (char *)arena_alloc(arena, sizeof(char) * capacity);
+
+  if (!buffer)
+    return (StringView){0};
+
+  char c;
+  while ((c = getchar()) != '\n' && c != EOF) {
+    if (len >= capacity) {
+      capacity *= 2;
+      char *new_buffer = (char *)arena_alloc(arena, sizeof(char) * capacity);
+
+      if (!new_buffer)
+        return (StringView){.data = buffer, .len = len};
+
+      memcpy(new_buffer, buffer, len);
+
+      buffer = new_buffer;
+    }
+
+    buffer[len++] = c;
+  }
+
+  return (StringView){.data = buffer, .len = len};
+}
+
 static inline StringView sv_from(const char *str) {
   return (StringView){
       .data = str,
@@ -419,12 +448,12 @@ static inline StringViewArray sv_split(Arena *arena, StringView sv,
   };
 }
 
-typedef void (*SvArr_Iterator)(Arena *, StringView, void *);
+typedef void (*SvArr_Iterator)(Arena *, StringView, size_t, void *);
 
 static inline void sv_arr_iterate(StringViewArray sv_arr,
                                   SvArr_Iterator iterator, void *data) {
   for (size_t i = 0; i < sv_arr.len; i++) {
-    iterator(sv_arr.arena, sv_arr.elements[i], data);
+    iterator(sv_arr.arena, sv_arr.elements[i], i, data);
   }
 }
 
@@ -726,12 +755,12 @@ static inline void *da_get(DynamicArray *da, size_t index) {
   return da->data[index];
 }
 
-typedef void (*DA_Iterator)(DynamicArray *, void *, void *);
+typedef void (*DA_Iterator)(DynamicArray *, void *, size_t, void *);
 
 static inline void da_iterate(DynamicArray *da, DA_Iterator iterator,
                               void *data) {
   for (size_t i = 0; i < da->len; i++) {
-    iterator(da, da->data[i], data);
+    iterator(da, da->data[i], i, data);
   }
 }
 
